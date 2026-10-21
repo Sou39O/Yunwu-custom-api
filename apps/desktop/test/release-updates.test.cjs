@@ -27,20 +27,20 @@ const {
 const allowedAsset = "Yunwu.Desktop-0.7.0-win-x64-portable.zip";
 
 test("端内更新只接受本仓库 Release 的 portable 下载地址", () => {
-  const allowed = `https://github.com/Alterego-42/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`;
+  const allowed = `https://github.com/Sou39O/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`;
   assert.equal(ensureAllowedDownloadUrl(allowed), allowed);
 
   const rejected = [
     // 其它域名
-    `https://evil.example.com/Alterego-42/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`,
+    `https://evil.example.com/Sou39O/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`,
     // 明文 http
-    `http://github.com/Alterego-42/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`,
+    `http://github.com/Sou39O/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`,
     // 其它仓库
     `https://github.com/someone-else/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`,
     // 非 portable 资产
-    "https://github.com/Alterego-42/Yunwu-custom-api/releases/download/v0.7.0/setup.exe",
+    "https://github.com/Sou39O/Yunwu-custom-api/releases/download/v0.7.0/setup.exe",
     // 缺少版本段
-    `https://github.com/Alterego-42/Yunwu-custom-api/releases/download/latest/${allowedAsset}`
+    `https://github.com/Sou39O/Yunwu-custom-api/releases/download/latest/${allowedAsset}`
   ];
 
   for (const url of rejected) {
@@ -51,7 +51,7 @@ test("端内更新只接受本仓库 Release 的 portable 下载地址", () => {
 test("下载地址由 tag 与资产名拼出，且同样受白名单约束", () => {
   assert.equal(
     buildPortableDownloadUrl("v0.7.0", allowedAsset),
-    `https://github.com/Alterego-42/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`
+    `https://github.com/Sou39O/Yunwu-custom-api/releases/download/v0.7.0/${allowedAsset}`
   );
   assert.throws(() => buildPortableDownloadUrl("v0.7.0", "payload.exe"));
 });

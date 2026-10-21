@@ -23,7 +23,7 @@ Module._load = function patchedLoad(request, ...rest) {
 const { stageDesktopUpdate } = require(join(__dirname, "..", "dist", "main", "desktop-installer.js"));
 
 const manifestUrl =
-  "https://github.com/Alterego-42/Yunwu-custom-api/releases/latest/download/yunwu-release.json";
+  "https://github.com/Sou39O/Yunwu-custom-api/releases/latest/download/yunwu-release.json";
 const workDir = process.argv[2] ?? join(tmpdir(), "yunwu-update-verify");
 
 (async () => {
@@ -31,7 +31,7 @@ const workDir = process.argv[2] ?? join(tmpdir(), "yunwu-update-verify");
   const asset = manifest.desktop.portableAsset;
   console.log(`发布清单：${manifest.tag}，资产 ${asset.name}（${(asset.size / 1024 / 1024).toFixed(1)} MB）`);
 
-  const downloadUrl = `https://github.com/Alterego-42/Yunwu-custom-api/releases/download/${manifest.tag}/${asset.name}`;
+  const downloadUrl = `https://github.com/Sou39O/Yunwu-custom-api/releases/download/${manifest.tag}/${asset.name}`;
   rmSync(workDir, { recursive: true, force: true });
   // 模拟真实安装目录（可写），验证可写性检查与替换脚本生成。
   const fakeInstallDir = join(workDir, "install");

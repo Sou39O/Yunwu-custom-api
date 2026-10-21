@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 const appId = "ai.yunwu.desktop";
-const repoOwner = "Alterego-42";
+const repoOwner = "Sou39O";
 const repoName = "Yunwu-custom-api";
 const releaseManifestAssetName = "yunwu-release.json";
 const githubLatestReleaseApiUrl = `https://api.github.com/repos/${repoOwner}/${repoName}/releases/latest`;

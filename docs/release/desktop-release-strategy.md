@@ -182,7 +182,7 @@ YUNWU_IMAGE_TAG=v0.4.3
   "version": "0.4.4",
   "tag": "v0.4.4",
   "channel": "stable",
-  "releaseUrl": "https://github.com/Alterego-42/Yunwu-custom-api/releases/tag/v0.4.4",
+  "releaseUrl": "https://github.com/Sou39O/Yunwu-custom-api/releases/tag/v0.4.4",
   "portableAsset": {
     "name": "Yunwu.Desktop-0.4.4-win-x64-portable.zip",
     "sha256": "..."

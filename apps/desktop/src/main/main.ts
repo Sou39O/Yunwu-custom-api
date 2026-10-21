@@ -971,7 +971,7 @@ ipcMain.handle("desktop:open-release-page", async () => {
   await shell.openExternal(
     updateStatus.releaseUrl ??
       releaseState.lastKnownLatest?.releaseUrl ??
-      "https://github.com/Alterego-42/Yunwu-custom-api/releases"
+      "https://github.com/Sou39O/Yunwu-custom-api/releases"
   );
 });
 ipcMain.handle("desktop:retry", async () => {

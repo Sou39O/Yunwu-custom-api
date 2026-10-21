@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { readFile, stat, writeFile } from "node:fs/promises";
 import { basename } from "node:path";
 
-const repo = "Alterego-42/Yunwu-custom-api";
-const registry = "ghcr.io/alterego-42";
+const repo = "Sou39O/Yunwu-custom-api";
+const registry = "ghcr.io/sou39o";
 const imagePrefix = `${registry}/yunwu-custom-api`;
 
 function readArgs(argv) {
