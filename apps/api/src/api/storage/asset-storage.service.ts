@@ -26,13 +26,18 @@ export class AssetStorageService {
   }
 
   async resolveContent(
-    asset: Pick<Asset, "storageKey" | "metadata">,
+    asset: Pick<Asset, "storageKey" | "metadata" | "url">,
   ): Promise<AssetContentResolution | undefined> {
+    const metadata = this.readMetadata(asset.metadata);
+
+    // 早期生成的资产可能只留了上游 URL（下载字节失败时退化成 remote-url），
+    // 没有 storageKey 也要能用上游地址兜底，否则这些作品在批量下载里会被整片跳过。
     if (!asset.storageKey) {
-      return undefined;
+      return asset.url && /^https?:\/\//i.test(asset.url)
+        ? { kind: "upstream-url", upstreamUrl: asset.url }
+        : undefined;
     }
 
-    const metadata = this.readMetadata(asset.metadata);
     if (metadata.storage === "s3") {
       return this.s3Storage.resolve(asset.storageKey, metadata.objectUrl);
     }

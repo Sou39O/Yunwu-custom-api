@@ -8,6 +8,7 @@ import {
 import type { TaskStatus } from "@yunwu/shared";
 import { randomUUID } from "node:crypto";
 import { AssetStorageService } from "../api/storage/asset-storage.service";
+import { downloadUpstreamImage } from "../api/storage/upstream-image-download";
 import { ConversationEventsService } from "../api/conversation-events.service";
 import { ImageProviderService } from "../openai-compatible/image-provider.service";
 import { UserProviderCredentialsService } from "../openai-compatible/user-provider-credentials.service";
@@ -936,12 +937,12 @@ export class TaskExecutionService {
       return Buffer.from(dataUrl[2], "base64");
     }
 
-    const response = await fetch(url);
-    if (!response.ok) {
-      throw new Error(`Generated image download failed with status ${response.status}.`);
+    // 上游图片 CDN 会偶发抽风；不重试的话作品就退化成只剩一个会过期的临时链接。
+    const buffer = await downloadUpstreamImage(url);
+    if (!buffer) {
+      throw new Error("Generated image download failed.");
     }
-
-    return Buffer.from(await response.arrayBuffer());
+    return buffer;
   }
 
   private mimeTypeFromDataUrl(url: string) {

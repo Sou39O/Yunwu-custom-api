@@ -86,4 +86,8 @@ export const configuration = () => ({
     baseUrl: process.env.OPENLUX_BASE_URL ?? "https://api.openlux.ai/v1",
     apiKey: process.env.OPENLUX_API_KEY,
   },
+  assetBackfill: {
+    // 只存了上游 URL 的历史作品，启动后补下载到本地存储
+    enabled: process.env.ASSET_BACKFILL_ENABLED ?? "true",
+  },
 });

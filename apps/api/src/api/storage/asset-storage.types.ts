@@ -22,6 +22,12 @@ export interface RedirectAssetContent {
   redirectUrl: string;
 }
 
+/** 只保存了上游 URL、字节没有落盘的历史资产（早期生成时下载失败）。 */
+export interface UpstreamUrlAssetContent {
+  kind: "upstream-url";
+  upstreamUrl: string;
+}
+
 export interface RemoteAssetContent {
   kind: "remote";
   buffer: Buffer;
@@ -36,5 +42,6 @@ export interface MissingRemoteAssetContent {
 export type AssetContentResolution =
   | LocalAssetContent
   | RedirectAssetContent
+  | UpstreamUrlAssetContent
   | RemoteAssetContent
   | MissingRemoteAssetContent;

@@ -116,7 +116,7 @@ export class AssetUploadService {
         user.role === "admin"
           ? { storageKey }
           : { storageKey, userId: user.id },
-      select: { storageKey: true, metadata: true, userId: true },
+      select: { storageKey: true, metadata: true, url: true, userId: true },
       orderBy: { createdAt: "desc" },
     });
     if (!asset) {

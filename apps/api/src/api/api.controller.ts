@@ -287,6 +287,12 @@ export class ApiController {
       response.setHeader("Location", asset.redirectUrl);
       return undefined;
     }
+    // 只留了上游地址的历史资产：直接跳转，避免把过期链接挡在本地。
+    if (asset.kind === "upstream-url") {
+      response.statusCode = 302;
+      response.setHeader("Location", asset.upstreamUrl);
+      return undefined;
+    }
     if (asset.kind === "missing-remote-url") {
       throw new NotImplementedException(asset.message);
     }

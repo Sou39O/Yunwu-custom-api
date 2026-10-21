@@ -120,6 +120,10 @@ export class LibraryDownloadService {
       return fetchAssetBytes(resolution.redirectUrl);
     }
 
+    if (resolution.kind === "upstream-url") {
+      return fetchAssetBytes(resolution.upstreamUrl);
+    }
+
     return undefined;
   }
 
