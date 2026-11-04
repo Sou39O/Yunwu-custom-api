@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { readFile } from "node:fs/promises";
 import type { Asset, User } from "@prisma/client";
 import { AssetStorageService } from "../storage/asset-storage.service";
+import { downloadImageViaProxy } from "../storage/proxy-fetch";
 import { PrismaService } from "../../prisma/prisma.service";
 import { ZipWriter } from "./zip-writer";
 
@@ -11,6 +12,10 @@ const DATE_PREFIX_LENGTH = 10;
 /** 资产 id 哈希取前几位，足以区分又不至于文件名过长。 */
 const HASH_PREFIX_LENGTH = 8;
 const MAX_BATCH_DOWNLOAD = 200;
+/** 同时拉取的远端作品数量上限。 */
+const DOWNLOAD_CONCURRENCY = 8;
+/** 单个远端作品的下载超时；失效的上游链接不能无限期占住下载。 */
+const ASSET_FETCH_TIMEOUT_MS = 20_000;
 
 export interface LibraryDownloadEntry {
   assetId: string;
@@ -66,14 +71,34 @@ export class LibraryDownloadService {
     const writer = new ZipWriter();
     let skipped = 0;
 
-    for (const asset of assets) {
-      const bytes = await this.readAssetBytes(asset);
+    // 先按并发窗口把字节取回来，再按原顺序写入 zip。
+    // 远端链接失效时单次连接要等满超时，串行逐个取会让整个下载看起来像卡死
+    // （153 张 × 10 秒 ≈ 25 分钟），并发取能把这段等待压到一两轮。
+    const pending = new Map<number, Promise<Buffer | undefined>>();
+    let nextIndex = 0;
+    const prefetch = () => {
+      while (nextIndex < assets.length && pending.size < DOWNLOAD_CONCURRENCY) {
+        const index = nextIndex;
+        nextIndex += 1;
+        pending.set(
+          index,
+          this.readAssetBytes(assets[index]).catch(() => undefined),
+        );
+      }
+    };
+
+    prefetch();
+    for (let index = 0; index < assets.length; index += 1) {
+      const bytes = await pending.get(index);
+      pending.delete(index);
+      prefetch();
+
       if (!bytes) {
         // 单个资产读不到不应让整包失败，跳过并继续。
         skipped += 1;
         continue;
       }
-      writer.add(this.buildFileName(asset), bytes, toDate(asset.createdAt));
+      writer.add(this.buildFileName(assets[index]), bytes, toDate(assets[index].createdAt));
       for (const chunk of writer.drain()) {
         yield chunk;
       }
@@ -194,14 +219,7 @@ function resolveExtension(asset: Pick<Asset, "storageKey" | "mimeType">) {
 }
 
 async function fetchAssetBytes(url: string) {
-  try {
-    const response = await fetch(url);
-    if (!response.ok) {
-      return undefined;
-    }
-    const buffer = await response.arrayBuffer();
-    return Buffer.from(buffer);
-  } catch {
-    return undefined;
-  }
+  // 必须带超时并走代理：上游临时链接失效时连接会一直挂着，
+  // 而只能经系统代理出网时全局 fetch 又根本不走代理。
+  return downloadImageViaProxy(url, ASSET_FETCH_TIMEOUT_MS);
 }

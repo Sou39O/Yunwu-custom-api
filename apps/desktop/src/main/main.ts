@@ -16,6 +16,7 @@ import {
   type ReleaseState,
   type UpdateStatus
 } from "./release-updates";
+import { detectSystemProxyEnv } from "./system-proxy";
 import {
   cleanupStagingDirs,
   getInstallDir,
@@ -358,7 +359,11 @@ async function startServer(identity: RuntimeIdentity) {
   // （VPN/杀软）改坏的机器上创建监听套接字会直接失败（listen UNKNOWN），
   // 同一台机器上纯 Node 模式绑定正常。
   const child = fork(entry, [], {
-    env: { ...buildServerEnv(identity), ELECTRON_RUN_AS_NODE: "1" },
+    env: {
+      ...buildServerEnv(identity),
+      ...(await detectSystemProxyEnv()),
+      ELECTRON_RUN_AS_NODE: "1"
+    },
     execPath: process.execPath,
     stdio: ["ignore", "pipe", "pipe", "ipc"]
   });
