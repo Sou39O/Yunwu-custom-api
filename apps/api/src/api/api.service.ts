@@ -2305,9 +2305,6 @@ export class ApiService implements OnModuleInit {
     const output = this.asRecord(task.output);
     const batch = this.toTaskBatchSummary(task, output);
     const inputAssetIds = this.asStringArray(input.assetIds) ?? [];
-    const outputAssetIds = Array.isArray(output.assetIds)
-      ? output.assetIds.filter((id): id is string => typeof id === "string")
-      : [];
     const failure = this.toTaskFailureRecord(task);
 
     return {
@@ -2340,7 +2337,9 @@ export class ApiService implements OnModuleInit {
       createdAt: task.createdAt.toISOString(),
       updatedAt: task.updatedAt.toISOString(),
       errorMessage: task.errorMessage ?? undefined,
-      assetIds: inputAssetIds.length > 0 ? inputAssetIds : outputAssetIds,
+      // 只暴露输入资产；产出统一走 outputSummary.generatedAssetIds。
+      // 以前没有输入时会回退成产出，前端据此把生成结果渲染成“参考素材”。
+      assetIds: inputAssetIds,
     };
   }
 

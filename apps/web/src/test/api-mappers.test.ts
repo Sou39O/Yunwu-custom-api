@@ -165,6 +165,22 @@ describe("api mappers", () => {
     });
   });
 
+  it("does not present generated outputs as reference material", () => {
+    const task = createTask({
+      status: "succeeded",
+      // 旧接口的回退值：没有输入时 assetIds 会等于产出，前端不能再据此判断参考素材。
+      assetIds: ["asset_out_1"],
+      inputSummary: { assetIds: [] },
+      outputSummary: { generatedAssetIds: ["asset_out_1"] },
+    });
+    const asset = createAsset({ id: "asset_out_1" });
+
+    const uiTask = toUiTask(task, [asset]);
+
+    expect(uiTask.inputAssets).toEqual([]);
+    expect(uiTask.resultAssets?.map((item) => item.id)).toEqual(["asset_out_1"]);
+  });
+
   it("prefers image.edit when manual uploads are present", () => {
     expect(
       resolveComposerCapability({

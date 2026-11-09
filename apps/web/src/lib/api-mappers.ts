@@ -196,6 +196,13 @@ export function getTaskProgress(task: TaskRecord) {
 }
 
 export function getTaskInputAssetIds(task: TaskRecord) {
+  // inputSummary.assetIds 才是任务真正的输入；task.assetIds 在旧接口里没有输入时会
+  // 回退成产出，直接拿来渲染会把生成结果误显示成“参考素材”。
+  const summaryAssetIds = task.inputSummary?.assetIds;
+  if (Array.isArray(summaryAssetIds)) {
+    return summaryAssetIds.filter((value): value is string => typeof value === "string");
+  }
+
   return Array.isArray(task.assetIds) ? task.assetIds : [];
 }
 
