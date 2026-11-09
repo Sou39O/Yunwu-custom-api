@@ -52,12 +52,28 @@ function normalizeLoopbackApiBaseUrl(value: string) {
   }
 }
 
-function getDefaultApiBaseUrl() {
-  if (typeof window === "undefined") {
+export function resolveDefaultApiBaseUrl(
+  location: Pick<Location, "origin" | "protocol" | "hostname"> | undefined,
+  isDevBuild: boolean,
+) {
+  if (!location) {
     return "http://127.0.0.1:3000";
   }
 
-  return `${window.location.protocol}//${window.location.hostname}:3000`;
+  // 生产包由内置 API 服务自己托管页面，页面 origin 上就带着本次实际端口。
+  // 端口 3000 被占用时桌面端会换随机端口，写死 3000 会把请求发到别的服务上。
+  if (!isDevBuild) {
+    return location.origin;
+  }
+
+  return `${location.protocol}//${location.hostname}:3000`;
+}
+
+function getDefaultApiBaseUrl() {
+  return resolveDefaultApiBaseUrl(
+    typeof window === "undefined" ? undefined : window.location,
+    import.meta.env.DEV,
+  );
 }
 
 function normalizeApiRoot(value: string | undefined) {

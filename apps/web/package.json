@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b && vite build",
+    "build": "tsc -b && node scripts/build.mjs",
     "preview": "vite preview",
     "lint": "tsc --noEmit",
     "test:routes": "vitest run --environment jsdom src/test/app-routing.test.tsx src/test/auth-pages.test.tsx src/test/app-shell.test.tsx src/test/prompt-dispatch.test.ts src/test/create-page.test.tsx src/test/home-page.test.tsx src/test/history-page.test.tsx src/test/library-page.test.tsx src/test/task-card.test.tsx src/test/composer.test.tsx src/test/settings-page.test.tsx src/test/workspace-page.test.tsx"
