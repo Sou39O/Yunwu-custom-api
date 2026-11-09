@@ -128,6 +128,46 @@ const CAPABILITY_NAMES: Record<string, string> = {
   "image.edit": "Image editing",
 };
 
+/** 作品库默认每页条数；上限防止一次拉太多。 */
+const LIBRARY_DEFAULT_PAGE_SIZE = 100;
+const LIBRARY_MAX_PAGE_SIZE = 200;
+
+function resolveLibraryPageSize(requested?: number): number {
+  if (!requested || !Number.isFinite(requested)) {
+    return LIBRARY_DEFAULT_PAGE_SIZE;
+  }
+  return Math.min(Math.max(Math.trunc(requested), 1), LIBRARY_MAX_PAGE_SIZE);
+}
+
+/** 游标就是「最后一条的 createdAt 毫秒 + id」，base64url 编码后交给客户端。 */
+function encodeLibraryCursor(asset: { createdAt: Date; id: string }): string {
+  return Buffer.from(`${asset.createdAt.getTime()}_${asset.id}`, "utf8").toString("base64url");
+}
+
+function decodeLibraryCursor(value?: string): { createdAt: Date; id: string } | null {
+  if (!value) {
+    return null;
+  }
+
+  try {
+    const decoded = Buffer.from(value, "base64url").toString("utf8");
+    const separator = decoded.indexOf("_");
+    if (separator <= 0) {
+      return null;
+    }
+
+    const createdAt = new Date(Number(decoded.slice(0, separator)));
+    const id = decoded.slice(separator + 1);
+    if (!id || Number.isNaN(createdAt.getTime())) {
+      return null;
+    }
+
+    return { createdAt, id };
+  } catch {
+    return null;
+  }
+}
+
 interface TaskInputShape {
   model?: string;
   prompt?: string;
@@ -814,30 +854,54 @@ export class ApiService implements OnModuleInit {
     };
   }
 
-  async getLibrary(user: AuthenticatedUser): Promise<LibraryResponse> {
-    const assets = await this.prisma.asset.findMany({
-      where:
-        user.role === "admin"
-          ? {
-              type: "generated",
-              status: { not: "deleted" },
-              task: {
-                is: {
-                  status: "succeeded",
-                },
-              },
-            }
-          : {
-              userId: user.id,
-              type: "generated",
-              status: { not: "deleted" },
-              task: {
-                is: {
-                  userId: user.id,
-                  status: "succeeded",
-                },
+  async getLibrary(
+    user: AuthenticatedUser,
+    options: { cursor?: string; limit?: number } = {},
+  ): Promise<LibraryResponse> {
+    const limit = resolveLibraryPageSize(options.limit);
+    const cursor = decodeLibraryCursor(options.cursor);
+
+    const scope: Prisma.AssetWhereInput =
+      user.role === "admin"
+        ? {
+            type: "generated",
+            status: { not: "deleted" },
+            task: {
+              is: {
+                status: "succeeded",
               },
             },
+          }
+        : {
+            userId: user.id,
+            type: "generated",
+            status: { not: "deleted" },
+            task: {
+              is: {
+                userId: user.id,
+                status: "succeeded",
+              },
+            },
+          };
+
+    // 游标分页：按 (createdAt, id) 倒序 keyset 翻页，避免新增作品把 offset 顶偏。
+    const where: Prisma.AssetWhereInput = cursor
+      ? {
+          AND: [
+            scope,
+            {
+              OR: [
+                { createdAt: { lt: cursor.createdAt } },
+                { createdAt: cursor.createdAt, id: { lt: cursor.id } },
+              ],
+            },
+          ],
+        }
+      : scope;
+
+    // 多取一条用来判断还有没有下一页。
+    const assets = await this.prisma.asset.findMany({
+      where,
       include: {
         task: {
           include: {
@@ -849,12 +913,16 @@ export class ApiService implements OnModuleInit {
           },
         },
       },
-      orderBy: { createdAt: "desc" },
-      take: 100,
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      take: limit + 1,
     });
 
+    const page = assets.slice(0, limit);
+    const last = page[page.length - 1];
+
     return {
-      items: this.toLibraryItemRecords(assets),
+      items: this.toLibraryItemRecords(page),
+      nextCursor: assets.length > limit && last ? encodeLibraryCursor(last) : null,
     };
   }
 

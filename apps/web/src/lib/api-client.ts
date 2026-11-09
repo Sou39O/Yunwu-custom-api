@@ -937,8 +937,9 @@ export const apiClient = {
     return request<HistoryResponse>("/history");
   },
 
-  async getLibrary() {
-    return request<LibraryResponse>("/library");
+  async getLibrary(cursor?: string) {
+    const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
+    return request<LibraryResponse>(`/library${query}`);
   },
 
   async deleteLibraryAsset(id: string) {

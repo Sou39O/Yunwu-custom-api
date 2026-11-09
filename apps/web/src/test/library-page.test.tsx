@@ -307,4 +307,26 @@ describe("library page", () => {
     expect(screen.queryByRole("button", { name: "继续创作" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Fork" })).toBeNull();
   });
+
+  it("加载更多 appends the next page and hides the button when exhausted", async () => {
+    const nextItem = createLibraryItem({
+      asset: createAsset({ id: "asset_next", taskId: "task_next" }),
+      task: createTask({ id: "task_next" }),
+    });
+    apiClientMock.getLibrary
+      .mockResolvedValueOnce({ items: [createLibraryItem()], nextCursor: "cursor-1" })
+      .mockResolvedValueOnce({ items: [nextItem], nextCursor: null });
+
+    render(
+      <MemoryRouter initialEntries={["/library"]}>
+        <LibraryPage />
+      </MemoryRouter>,
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "加载更多" }));
+
+    await waitFor(() => expect(apiClientMock.getLibrary).toHaveBeenLastCalledWith("cursor-1"));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "加载更多" })).toBeNull());
+    expect(apiClientMock.getLibrary).toHaveBeenCalledTimes(2);
+  });
 });

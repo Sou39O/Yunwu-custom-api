@@ -194,8 +194,16 @@ export class ApiController {
   }
 
   @Get("library")
-  getLibrary(@CurrentUser() user: AuthenticatedUser): Promise<LibraryResponse> {
-    return this.api.getLibrary(user);
+  getLibrary(
+    @CurrentUser() user: AuthenticatedUser,
+    @Query("cursor") cursor?: string,
+    @Query("limit") limit?: string,
+  ): Promise<LibraryResponse> {
+    const parsedLimit = Number.parseInt(limit ?? "", 10);
+    return this.api.getLibrary(user, {
+      cursor: cursor || undefined,
+      limit: Number.isInteger(parsedLimit) ? parsedLimit : undefined,
+    });
   }
 
   @Delete("library/assets/:id")

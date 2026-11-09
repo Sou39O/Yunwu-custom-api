@@ -20,10 +20,16 @@ function collectAssetIds(item: LibraryItemRecord) {
   return assets.map((asset) => asset.id);
 }
 
+/** 翻页去重用：批量卡按任务收敛，单张按资产 id。 */
+function libraryItemKey(item: LibraryItemRecord) {
+  return item.kind === "batch" ? `task:${item.task.id}` : `asset:${item.asset.id}`;
+}
+
 export function LibraryPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<LibraryResponse>();
   const [loading, setLoading] = useState(true);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingIds, setDeletingIds] = useState<string[]>([]);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -41,6 +47,37 @@ export function LibraryPage() {
       setLoading(false);
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    const cursor = data?.nextCursor;
+    if (!cursor || loadingMore) {
+      return;
+    }
+
+    setLoadingMore(true);
+    setError(null);
+
+    try {
+      const next = await apiClient.getLibrary(cursor);
+      setData((current) => {
+        const items = [...(current?.items ?? [])];
+        const seen = new Set(items.map(libraryItemKey));
+        for (const item of next.items) {
+          const key = libraryItemKey(item);
+          if (seen.has(key)) {
+            continue;
+          }
+          seen.add(key);
+          items.push(item);
+        }
+        return { items, nextCursor: next.nextCursor ?? null };
+      });
+    } catch (nextError) {
+      setError(getErrorMessage(nextError));
+    } finally {
+      setLoadingMore(false);
+    }
+  }, [data?.nextCursor, loadingMore]);
 
   useEffect(() => {
     void loadLibrary();
@@ -114,6 +151,7 @@ export function LibraryPage() {
         current
           ? {
               items: current.items.filter((entry) => entry.asset.id !== item.asset.id),
+              nextCursor: current.nextCursor,
             }
           : current,
       );
@@ -224,6 +262,14 @@ export function LibraryPage() {
             }
           />
         ))}
+
+        {data?.nextCursor ? (
+          <div className="flex justify-center md:col-span-2 xl:col-span-3">
+            <Button variant="outline" onClick={() => void loadMore()} disabled={loadingMore}>
+              {loadingMore ? "加载中..." : "加载更多"}
+            </Button>
+          </div>
+        ) : null}
       </div>
     </div>
   );

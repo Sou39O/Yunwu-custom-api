@@ -149,6 +149,8 @@ export interface LibraryItemRecord {
 
 export interface LibraryResponse {
   items: LibraryItemRecord[];
+  /** 下一页游标；null 表示已经到最后一页。 */
+  nextCursor?: string | null;
 }
 
 export interface DeleteLibraryAssetResponse {
