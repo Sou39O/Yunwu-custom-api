@@ -21,6 +21,7 @@ import type {
   LibraryResponse,
   ModelRecord,
   RetryTaskResponse,
+  TaskResponse,
   TaskRecord,
   TaskEventRecord,
   UploadAssetResponse,
@@ -818,6 +819,25 @@ export const apiClient = {
       `/tasks/${encodeURIComponent(id)}/events`,
     );
     return unwrapList<TaskEventRecord>(payload, "events");
+  },
+
+  async cancelTask(id: string) {
+    const payload = await request<TaskResponse>(
+      `/tasks/${encodeURIComponent(id)}/cancel`,
+      { method: "POST" },
+    );
+    return payload.task;
+  },
+
+  async enableAutoRetry(id: string, batchSize?: number) {
+    const payload = await request<TaskResponse>(
+      `/tasks/${encodeURIComponent(id)}/auto-retry`,
+      {
+        method: "POST",
+        body: batchSize === undefined ? undefined : { batchSize },
+      },
+    );
+    return payload.task;
   },
 
   async retryTask(

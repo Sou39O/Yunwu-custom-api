@@ -17,6 +17,7 @@ import { OpenAICompatibleRequestError } from "../openai-compatible/openai-compat
 import { ProviderAlertsService } from "../openai-compatible/provider-alerts.service";
 import { ProviderOperationalStateService } from "../openai-compatible/provider-operational-state.service";
 import { PrismaService } from "../prisma/prisma.service";
+import { TaskAutoRetryService } from "./task-auto-retry.service";
 import { TaskEventsService } from "./task-events.service";
 
 type SupportedTaskCapability = "image.generate" | "image.edit";
@@ -67,6 +68,7 @@ export class TaskExecutionService {
     private readonly conversationEvents: ConversationEventsService,
     private readonly taskEvents: TaskEventsService,
     private readonly assetStorage: AssetStorageService,
+    private readonly taskAutoRetry: TaskAutoRetryService,
   ) {}
 
   async execute(taskId: string) {
@@ -187,6 +189,11 @@ export class TaskExecutionService {
         details: result.responseSummary,
       });
 
+      if (await this.isTaskCancelled(task.id)) {
+        this.logger.warn(`Task ${task.id} was cancelled; dropping provider result.`);
+        return;
+      }
+
       const storedOutput = await this.storeGeneratedOutput(task.id, result);
       const asset = await this.prisma.asset.create({
         data: {
@@ -253,6 +260,7 @@ export class TaskExecutionService {
       });
       await this.providerAlerts.refreshAlerts(await this.providerState.getState());
       this.publishTaskUpdated(task.conversationId, task.id, "succeeded");
+      await this.taskAutoRetry.maybeSchedule(task.id);
     } catch (error) {
       const failure = this.buildFailureSummary(error);
       if (error instanceof OpenAICompatibleRequestError) {
@@ -302,7 +310,16 @@ export class TaskExecutionService {
       this.publishTaskUpdated(task.conversationId, task.id, "failed");
 
       this.logger.error(`Task ${task.id} failed: ${failure.errorMessage}`);
+      await this.taskAutoRetry.maybeSchedule(task.id);
     }
+  }
+
+  private async isTaskCancelled(taskId: string) {
+    const row = await this.prisma.task.findUnique({
+      where: { id: taskId },
+      select: { status: true },
+    });
+    return row?.status === "cancelled";
   }
 
   private async executeBatchTask(taskId: string) {
@@ -530,6 +547,7 @@ export class TaskExecutionService {
       });
       await this.providerAlerts.refreshAlerts(await this.providerState.getState());
       this.publishTaskUpdated(task.conversationId, task.id, finalStatus);
+      await this.taskAutoRetry.maybeSchedule(task.id);
     } catch (error) {
       const failure = this.buildFailureSummary(error);
       let summary:
@@ -653,6 +671,7 @@ export class TaskExecutionService {
       });
       await this.providerAlerts.refreshAlerts(await this.providerState.getState());
       this.publishTaskUpdated(task.conversationId, task.id, finalStatus);
+      await this.taskAutoRetry.maybeSchedule(task.id);
       this.logger.error(`Batch task ${task.id} failed: ${failure.errorMessage}`);
     }
   }
@@ -682,6 +701,10 @@ export class TaskExecutionService {
         })),
         params: context.input.params,
       });
+      if (await this.isTaskCancelled(task.id)) {
+        this.logger.warn(`Batch task ${task.id} was cancelled; dropping slot result.`);
+        return;
+      }
       const storedOutput = await this.storeGeneratedOutput(task.id, result);
       const asset = await this.prisma.asset.create({
         data: {

@@ -74,6 +74,10 @@ export type CreateTaskResponse = {
   conversation: ConversationDetail;
 };
 
+export type TaskResponse = {
+  task: TaskRecord;
+};
+
 export type RetryTaskResponse = {
   task: TaskRecord;
   retriedFromTaskId: string;

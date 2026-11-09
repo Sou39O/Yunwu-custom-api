@@ -195,6 +195,25 @@ export function getTaskProgress(task: TaskRecord) {
   }
 }
 
+export interface TaskAutoRetryState {
+  batchSize: number;
+  round: number;
+}
+
+export function getTaskAutoRetry(task: TaskRecord): TaskAutoRetryState | undefined {
+  const raw = task.inputSummary?.autoRetry;
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+    return undefined;
+  }
+  const record = raw as Record<string, unknown>;
+  if (record.completedAt) {
+    return undefined;
+  }
+  const batchSize = typeof record.batchSize === "number" ? record.batchSize : 20;
+  const round = typeof record.round === "number" ? record.round : 0;
+  return { batchSize, round };
+}
+
 export function getTaskInputAssetIds(task: TaskRecord) {
   // inputSummary.assetIds 才是任务真正的输入；task.assetIds 在旧接口里没有输入时会
   // 回退成产出，直接拿来渲染会把生成结果误显示成“参考素材”。

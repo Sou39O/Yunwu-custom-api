@@ -28,6 +28,8 @@ export class TaskQueueService implements OnModuleDestroy {
   private readonly inFlight = new Set<string>();
   private readonly queuedIds = new Set<string>();
   private readonly retryTimers = new Set<NodeJS.Timeout>();
+  /** 已取消的 taskId：排队中的直接丢弃，已在执行的结果由执行器自行丢弃。 */
+  private readonly cancelledIds = new Set<string>();
   private readonly concurrency: number;
   private readonly batchConcurrency: number;
   private activeCount = 0;
@@ -80,8 +82,30 @@ export class TaskQueueService implements OnModuleDestroy {
     this.add({ taskId, batch: true, attempt: 0 }, source, options.dedupe ?? true);
   }
 
+  /** 取消排队中的任务：从队列移除，并拦截后续（重试定时器）入队。 */
+  cancelTask(taskId: string) {
+    this.cancelledIds.add(taskId);
+    for (let index = this.pending.length - 1; index >= 0; index -= 1) {
+      if (this.pending[index].taskId === taskId) {
+        this.pending.splice(index, 1);
+      }
+    }
+    this.queuedIds.delete(taskId);
+    this.logger.debug(`Task ${taskId} cancelled and dropped from queue.`);
+  }
+
+  /** 重新激活一个 taskId（原地重试失败槽位时会复用同一个 id）。 */
+  resumeTask(taskId: string) {
+    this.cancelledIds.delete(taskId);
+    this.queuedIds.delete(taskId);
+  }
+
+  isCancelled(taskId: string) {
+    return this.cancelledIds.has(taskId);
+  }
+
   private add(job: QueuedJob, source: string, dedupe: boolean) {
-    if (this.stopped) {
+    if (this.stopped || this.cancelledIds.has(job.taskId)) {
       return;
     }
 

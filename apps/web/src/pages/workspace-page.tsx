@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { apiClient } from "@/lib/api-client";
 import {
   buildTaskRoundNavigation,
+  getTaskAutoRetry,
   getTaskComposerAssets,
   getTaskIntentMode,
   isTaskActive,
@@ -671,6 +672,36 @@ export function WorkspacePage() {
     [activeId, location.pathname, navigate, refreshConversation],
   );
 
+  const handleCancelTask = useCallback(
+    async (task: TaskRecord) => {
+      setDetailError(null);
+      try {
+        await apiClient.cancelTask(task.id);
+        if (task.conversationId) {
+          await refreshConversation(task.conversationId, { silent: true });
+        }
+      } catch (nextError) {
+        setDetailError(getErrorMessage(nextError));
+      }
+    },
+    [refreshConversation],
+  );
+
+  const handleEnableAutoRetry = useCallback(
+    async (task: TaskRecord) => {
+      setDetailError(null);
+      try {
+        await apiClient.enableAutoRetry(task.id, 20);
+        if (task.conversationId) {
+          await refreshConversation(task.conversationId, { silent: true });
+        }
+      } catch (nextError) {
+        setDetailError(getErrorMessage(nextError));
+      }
+    },
+    [refreshConversation],
+  );
+
   const renderTaskActions = useCallback(
     (uiTask: UiTask) => {
       const task = taskRecordById.get(uiTask.id);
@@ -747,9 +778,56 @@ export function WorkspacePage() {
         );
       }
 
+      const autoRetry = getTaskAutoRetry(task);
+      const isRunning =
+        task.status === "queued" ||
+        task.status === "submitted" ||
+        task.status === "running";
+
+      if (isRunning) {
+        actions.push(
+          <Button
+            key={`${task.id}-cancel`}
+            size="sm"
+            variant="outline"
+            onClick={() => void handleCancelTask(task)}
+          >
+            停止
+          </Button>,
+        );
+      }
+
+      if (autoRetry) {
+        actions.push(
+          <span
+            key={`${task.id}-auto-retry-state`}
+            className="inline-flex items-center gap-1 rounded-md border border-[hsl(var(--outline-variant)/0.72)] bg-[hsl(var(--surface-container)/0.9)] px-2 py-1 text-xs text-muted-foreground"
+          >
+            自动重试中 · 第 {autoRetry.round + 1} 轮（×{autoRetry.batchSize}）
+          </span>,
+        );
+      } else if (task.status !== "cancelled") {
+        actions.push(
+          <Button
+            key={`${task.id}-auto-retry`}
+            size="sm"
+            variant="outline"
+            onClick={() => void handleEnableAutoRetry(task)}
+          >
+            自动×20重试至成功
+          </Button>,
+        );
+      }
+
       return actions.length > 0 ? actions : null;
     },
-    [handleRetryTask, primeComposerFromTask, taskRecordById],
+    [
+      handleCancelTask,
+      handleEnableAutoRetry,
+      handleRetryTask,
+      primeComposerFromTask,
+      taskRecordById,
+    ],
   );
 
   return (

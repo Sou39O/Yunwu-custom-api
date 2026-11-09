@@ -60,6 +60,7 @@ import type { AuthenticatedUser } from "../auth/auth.types";
 import { CheckUserApiKeyDto } from "./dto/check-user-api-key.dto";
 import { CreateConversationDto } from "./dto/create-conversation.dto";
 import { CreateTaskDto } from "./dto/create-task.dto";
+import { AutoRetryTaskDto } from "./dto/auto-retry-task.dto";
 import { RetryTaskDto } from "./dto/retry-task.dto";
 import { TestGenerateProviderDto } from "./dto/test-generate-provider.dto";
 import { UpdateModelCapabilityDto } from "./dto/update-model-capability.dto";
@@ -333,6 +334,23 @@ export class ApiController {
     @Body() input: RetryTaskDto = {},
   ): Promise<RetryTaskResponse> {
     return this.api.retryTask(user, id, input);
+  }
+
+  @Post("tasks/:id/cancel")
+  cancelTask(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+  ): Promise<TaskResponse> {
+    return this.api.cancelTask(user, id);
+  }
+
+  @Post("tasks/:id/auto-retry")
+  enableAutoRetry(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param("id") id: string,
+    @Body() input: AutoRetryTaskDto = {},
+  ): Promise<TaskResponse> {
+    return this.api.enableAutoRetry(user, id, { batchSize: input.batchSize });
   }
 
   @Get("tasks/:id")

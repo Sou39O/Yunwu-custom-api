@@ -106,6 +106,7 @@ import {
   TaskEventsService,
   type ConversationTaskEvent,
 } from "../tasks/task-events.service";
+import { TaskAutoRetryService, readAutoRetry, normalizeAutoRetryBatchSize } from "../tasks/task-auto-retry.service";
 import { TaskQueueService } from "../tasks/task-queue.service";
 import { ConversationEventsService } from "./conversation-events.service";
 import { CreateConversationDto } from "./dto/create-conversation.dto";
@@ -208,6 +209,7 @@ export class ApiService implements OnModuleInit {
     private readonly providerConfig: ProviderConfigurationService,
     private readonly providerState: ProviderOperationalStateService,
     private readonly providerAlerts: ProviderAlertsService,
+    private readonly taskAutoRetry: TaskAutoRetryService,
   ) {}
 
   async onModuleInit() {
@@ -1004,6 +1006,132 @@ export class ApiService implements OnModuleInit {
     return { events: events.map((event) => this.toTaskEventRecord(event)) };
   }
 
+  /** 停止任务：移出队列、标记 cancelled，正在执行的请求结果会被执行器丢弃。 */
+  async cancelTask(user: AuthenticatedUser, id: string): Promise<TaskResponse> {
+    const task = await this.prisma.task.findFirst({
+      where: user.role === "admin" ? { id } : { id, userId: user.id },
+      include: {
+        assets: true,
+        conversation: true,
+        user: true,
+        events: this.latestFailedEventArgs(),
+        batchItems: { orderBy: { batchIndex: "asc" } },
+      },
+    });
+    if (!task) {
+      throw new NotFoundException("Task not found.");
+    }
+
+    this.taskQueue.cancelTask(task.id);
+
+    const terminal = ["succeeded", "failed", "cancelled", "expired"].includes(
+      task.status,
+    );
+    if (terminal) {
+      return { task: this.toTaskRecord(task, task.assets) };
+    }
+
+    await this.prisma.$transaction([
+      this.prisma.task.update({
+        where: { id: task.id },
+        data: {
+          status: "cancelled",
+          progress: 100,
+          output: {
+            ...this.asRecord(task.output),
+            cancelledAt: new Date().toISOString(),
+          } as Prisma.InputJsonObject,
+        },
+      }),
+      this.prisma.taskBatchItem.updateMany({
+        where: {
+          taskId: task.id,
+          status: { in: ["queued", "submitted", "running"] },
+        },
+        data: { status: "cancelled", progress: 100, completedAt: new Date() },
+      }),
+      this.prisma.taskEvent.create({
+        data: {
+          taskId: task.id,
+          eventType: "cancelled",
+          status: "cancelled",
+          summary: "Task cancelled by user.",
+          details: {
+            title: "任务已停止",
+            detail: "已退出任务队列，未完成的请求结果会被丢弃。",
+            progress: 100,
+            previousStatus: task.status,
+          } as Prisma.InputJsonObject,
+        },
+      }),
+    ]);
+
+    if (task.conversationId) {
+      this.conversationEvents.publishTaskUpdated({
+        conversationId: task.conversationId,
+        taskId: task.id,
+        status: "cancelled",
+      });
+    }
+
+    return this.getTask(user, task.id);
+  }
+
+  /** 开启「自动 ×N 重试直到至少一张成功」。 */
+  async enableAutoRetry(
+    user: AuthenticatedUser,
+    id: string,
+    options: { batchSize?: number } = {},
+  ): Promise<TaskResponse> {
+    const task = await this.prisma.task.findFirst({
+      where: user.role === "admin" ? { id } : { id, userId: user.id },
+      select: { id: true, status: true, input: true, conversationId: true },
+    });
+    if (!task) {
+      throw new NotFoundException("Task not found.");
+    }
+    if (task.status === "cancelled") {
+      throw new BadRequestException("已停止的任务不能开启自动重试。");
+    }
+
+    const input = this.asRecord(task.input);
+    const existing = readAutoRetry(input);
+    const batchSize = normalizeAutoRetryBatchSize(
+      options.batchSize ?? existing?.batchSize,
+    );
+    const nextInput: Prisma.InputJsonObject = {
+      ...(task.input as Prisma.InputJsonObject),
+      autoRetry: {
+        batchSize,
+        round: existing?.round ?? 0,
+        enabledAt: new Date().toISOString(),
+      } as Prisma.InputJsonObject,
+    };
+
+    await this.prisma.task.update({
+      where: { id: task.id },
+      data: { input: nextInput },
+    });
+    await this.prisma.taskEvent.create({
+      data: {
+        taskId: task.id,
+        eventType: "auto_retry.enabled",
+        status: task.status,
+        summary: `Auto retry enabled (x${batchSize}).`,
+        details: {
+          title: `已开启自动重试 ×${batchSize}`,
+          detail: "全部失败时会自动再排一轮，直到至少出现一张成功图片。",
+          batchSize,
+        } as Prisma.InputJsonObject,
+      },
+    });
+
+    // 任务已经终结且没有成功图时，立刻开第一轮。
+    await this.taskAutoRetry.maybeSchedule(task.id);
+
+    return this.getTask(user, task.id);
+  }
+
   async retryTask(
     user: AuthenticatedUser,
     id: string,
@@ -1211,6 +1339,8 @@ export class ApiService implements OnModuleInit {
         });
       });
 
+      // 原地重试复用同一个 taskId：如果之前被取消过，要先恢复，否则队列会继续拦截。
+      this.taskQueue.resumeTask(task.id);
       await this.taskQueue.enqueueBatchTask(
         task.id,
         "batch-retry-failed-slots",
@@ -2758,6 +2888,7 @@ export class ApiService implements OnModuleInit {
       promptLength: prompt.length,
       assetCount: input.assetIds?.length ?? 0,
       assetIds: input.assetIds ?? [],
+      ...(readAutoRetry(input) ? { autoRetry: readAutoRetry(input) } : {}),
       providerBaseUrl: input.providerBaseUrl,
       params: this.summarizeParams(input.params),
       ...(input.batchCount && input.batchCount > 1
