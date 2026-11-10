@@ -142,6 +142,36 @@ export function LibraryPage() {
     await download(selectedIds);
   }, [download, selectedIds]);
 
+  /** 批量结果内删除勾选图片：删完把对应资产从当前列表项里摘掉，全空则移除该项。 */
+  const handleDeleteAssets = useCallback(
+    async (taskId: string, ids: string[]) => {
+      const { deletedIds } = await apiClient.deleteLibraryAssets(ids);
+      const deleted = new Set(deletedIds);
+
+      setData((current) => {
+        if (!current) {
+          return current;
+        }
+        const items: LibraryItemRecord[] = [];
+        for (const entry of current.items) {
+          if (entry.task.id !== taskId) {
+            items.push(entry);
+            continue;
+          }
+          const remaining = (entry.assets?.length ? entry.assets : [entry.asset]).filter(
+            (asset) => !deleted.has(asset.id),
+          );
+          if (remaining.length === 0) {
+            continue;
+          }
+          items.push({ ...entry, asset: remaining[0], assets: remaining });
+        }
+        return { ...current, items };
+      });
+    },
+    [],
+  );
+
   const handleDelete = useCallback(async (item: LibraryItemRecord) => {
     setDeletingIds((current) => [...current, item.asset.id]);
 
@@ -228,6 +258,7 @@ export function LibraryPage() {
             }
             selected={collectAssetIds(item).every((id) => selectedSet.has(id))}
             onSelectedChange={toggleItem}
+            onDeleteAssets={(ids) => handleDeleteAssets(item.task.id, ids)}
             actions={
               <>
                 {item.conversation?.id ? (

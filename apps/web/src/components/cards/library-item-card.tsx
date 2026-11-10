@@ -20,6 +20,7 @@ export function LibraryItemCard({
   actions,
   deleting = false,
   onEditAsset,
+  onDeleteAssets,
   selected = false,
   onSelectedChange,
 }: {
@@ -27,6 +28,8 @@ export function LibraryItemCard({
   actions?: ReactNode;
   deleting?: boolean;
   onEditAsset?: (asset: UiTaskAsset) => void;
+  /** 批量结果内删除勾选图片；不传则不显示删除入口。 */
+  onDeleteAssets?: (ids: string[]) => Promise<void>;
   /** 批量下载多选状态；传入 onSelectedChange 时才渲染勾选框。 */
   selected?: boolean;
   onSelectedChange?: (item: LibraryItemRecord, selected: boolean) => void;
@@ -147,6 +150,7 @@ export function LibraryItemCard({
               }
             : undefined
         }
+        onDeleteAssets={onDeleteAssets}
       />
     </>
   );

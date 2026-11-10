@@ -157,6 +157,10 @@ export interface DeleteLibraryAssetResponse {
   asset: AssetRecord;
 }
 
+export interface BatchDeleteLibraryAssetsResponse {
+  deletedIds: string[];
+}
+
 export interface HomeResponse {
   recentConversations: ConversationSummary[];
   recentTasks: TaskRecord[];

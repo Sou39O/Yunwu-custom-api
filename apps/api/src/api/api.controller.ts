@@ -31,6 +31,7 @@ import type {
   ConversationsResponse,
   CreateTaskResponse,
   DeleteConversationResponse,
+  BatchDeleteLibraryAssetsResponse,
   DeleteLibraryAssetResponse,
   HistoryResponse,
   HomeResponse,
@@ -61,6 +62,7 @@ import { CheckUserApiKeyDto } from "./dto/check-user-api-key.dto";
 import { CreateConversationDto } from "./dto/create-conversation.dto";
 import { CreateTaskDto } from "./dto/create-task.dto";
 import { AutoRetryTaskDto } from "./dto/auto-retry-task.dto";
+import { BatchDeleteLibraryAssetsDto } from "./dto/batch-delete-library-assets.dto";
 import { RetryTaskDto } from "./dto/retry-task.dto";
 import { TestGenerateProviderDto } from "./dto/test-generate-provider.dto";
 import { UpdateModelCapabilityDto } from "./dto/update-model-capability.dto";
@@ -205,6 +207,14 @@ export class ApiController {
       cursor: cursor || undefined,
       limit: Number.isInteger(parsedLimit) ? parsedLimit : undefined,
     });
+  }
+
+  @Post("library/assets/batch-delete")
+  deleteLibraryAssets(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() input: BatchDeleteLibraryAssetsDto,
+  ): Promise<BatchDeleteLibraryAssetsResponse> {
+    return this.api.deleteLibraryAssets(user, input.ids);
   }
 
   @Delete("library/assets/:id")

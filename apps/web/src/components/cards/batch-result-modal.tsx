@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, ExternalLink, Image as ImageIcon, Pencil, X } from "lucide-react";
+import { Download, ExternalLink, Image as ImageIcon, Pencil, Trash2, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { ImageLightbox } from "@/components/ui/image-lightbox";
@@ -12,29 +12,39 @@ export function BatchResultModal({
   open,
   onClose,
   onEditAsset,
+  onDeleteAssets,
 }: {
   task: UiTask;
   open: boolean;
   onClose: () => void;
   onEditAsset?: (asset: UiTaskAsset) => void;
+  /** 批量结果内删除勾选的图片；不传则不显示勾选与删除入口。 */
+  onDeleteAssets?: (ids: string[]) => Promise<void>;
 }) {
   const [previewAsset, setPreviewAsset] = useState<{
     asset: UiTaskAsset;
     url: string;
   } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+  const [removedIds, setRemovedIds] = useState<string[]>([]);
+  const [deleting, setDeleting] = useState(false);
   const { download, downloading } = useBatchDownload();
 
   if (!open) {
     return null;
   }
 
+  const removedSet = new Set(removedIds);
   const slotsWithAssets = (task.batchSlots ?? [])
-    .filter((slot) => slot.status === "succeeded" && slot.asset)
+    .filter(
+      (slot) =>
+        slot.status === "succeeded" && slot.asset && !removedSet.has(slot.asset.id),
+    )
     .sort((left, right) => left.batchIndex - right.batchIndex);
   const successfulSlots =
     slotsWithAssets.length > 0
       ? slotsWithAssets
-      : (task.resultAssets ?? []).map((asset, index) => ({
+      : (task.resultAssets ?? []).filter((asset) => !removedSet.has(asset.id)).map((asset, index) => ({
           id: `${task.id}-${asset.id}`,
           taskId: task.id,
           batchIndex: index,
@@ -43,6 +53,32 @@ export function BatchResultModal({
           asset,
           attempt: 1,
         }));
+
+  const toggleSelected = (assetId: string, selected: boolean) => {
+    setSelectedIds((current) =>
+      selected
+        ? [...new Set([...current, assetId])]
+        : current.filter((id) => id !== assetId),
+    );
+  };
+
+  const handleDeleteSelected = async () => {
+    if (!onDeleteAssets || selectedIds.length === 0 || deleting) {
+      return;
+    }
+    if (!window.confirm(`删除选中的 ${selectedIds.length} 张图片？删除后不可恢复。`)) {
+      return;
+    }
+
+    setDeleting(true);
+    try {
+      await onDeleteAssets(selectedIds);
+      setRemovedIds((current) => [...new Set([...current, ...selectedIds])]);
+      setSelectedIds([]);
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   return (
     <div
@@ -65,6 +101,17 @@ export function BatchResultModal({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            {onDeleteAssets ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={deleting || selectedIds.length === 0}
+                onClick={() => void handleDeleteSelected()}
+              >
+                <Trash2 className="h-4 w-4" />
+                {deleting ? "删除中..." : `删除选中 (${selectedIds.length})`}
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="outline"
@@ -108,6 +155,19 @@ export function BatchResultModal({
                   className="overflow-hidden rounded-xl border border-[hsl(var(--outline-variant)/0.72)] bg-[hsl(var(--surface-container)/0.9)]"
                 >
                   <div className="relative aspect-[4/3] bg-[hsl(var(--surface-container-lowest))]">
+                    {onDeleteAssets ? (
+                      <label className="absolute left-2 top-2 z-10 inline-flex h-6 w-6 items-center justify-center rounded-md border border-white/20 bg-black/60">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 accent-sky-400"
+                          aria-label={`选择批量结果 ${slot.batchIndex + 1}`}
+                          checked={selectedIds.includes(asset.id)}
+                          onChange={(event) =>
+                            toggleSelected(asset.id, event.target.checked)
+                          }
+                        />
+                      </label>
+                    ) : null}
                     {assetUrl ? (
                       <button
                         type="button"

@@ -956,6 +956,45 @@ export class ApiService implements OnModuleInit {
     return { asset: this.toAssetRecord(asset) };
   }
 
+  /** 批量删除作品库资产（批量结果里勾选的那几张）。 */
+  async deleteLibraryAssets(
+    user: AuthenticatedUser,
+    ids: string[],
+  ): Promise<{ deletedIds: string[] }> {
+    const uniqueIds = [...new Set(ids.filter((id) => typeof id === "string" && id))];
+    if (uniqueIds.length === 0) {
+      return { deletedIds: [] };
+    }
+
+    const assets = await this.prisma.asset.findMany({
+      where:
+        user.role === "admin"
+          ? { id: { in: uniqueIds }, type: "generated" }
+          : { id: { in: uniqueIds }, userId: user.id, type: "generated" },
+    });
+    const pending = assets.filter((asset) => asset.status !== "deleted");
+    const deletedAt = new Date().toISOString();
+
+    if (pending.length > 0) {
+      await this.prisma.$transaction(
+        pending.map((asset) =>
+          this.prisma.asset.update({
+            where: { id: asset.id },
+            data: {
+              status: "deleted",
+              metadata: {
+                ...this.asRecord(asset.metadata),
+                deletedAt,
+              } as Prisma.InputJsonObject,
+            },
+          }),
+        ),
+      );
+    }
+
+    return { deletedIds: assets.map((asset) => asset.id) };
+  }
+
   async getTask(user: AuthenticatedUser, id: string): Promise<TaskResponse> {
     const task = await this.prisma.task.findFirst({
       where: user.role === "admin" ? { id } : { id, userId: user.id },

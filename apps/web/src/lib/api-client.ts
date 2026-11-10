@@ -20,6 +20,7 @@ import type {
   HomeResponse,
   LibraryResponse,
   ModelRecord,
+  BatchDeleteLibraryAssetsResponse,
   RetryTaskResponse,
   TaskResponse,
   TaskRecord,
@@ -960,6 +961,13 @@ export const apiClient = {
   async getLibrary(cursor?: string) {
     const query = cursor ? `?cursor=${encodeURIComponent(cursor)}` : "";
     return request<LibraryResponse>(`/library${query}`);
+  },
+
+  async deleteLibraryAssets(ids: string[]) {
+    return request<BatchDeleteLibraryAssetsResponse>("/library/assets/batch-delete", {
+      method: "POST",
+      body: { ids },
+    });
   },
 
   async deleteLibraryAsset(id: string) {

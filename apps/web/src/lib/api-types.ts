@@ -116,6 +116,10 @@ export type DeleteLibraryAssetResponse = {
   asset: AssetRecord;
 };
 
+export type BatchDeleteLibraryAssetsResponse = {
+  deletedIds: string[];
+};
+
 export type ConversationMutationResponse = {
   conversation?: ConversationSummary;
 };
