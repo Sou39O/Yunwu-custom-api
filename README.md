@@ -2,7 +2,7 @@
 
 面向个人用户的 AI 图片生成与编辑工作台。`v0.7.0` 是轻量化重构版本：**彻底移除 Docker/PostgreSQL/Redis/MinIO 依赖**，整个后端（API + 任务队列 + Web 静态托管）合并为单个 Node 进程，数据落地 SQLite 与本地文件系统，桌面版冷启动约 2-3 秒（远低于 20 秒目标）。首次启动可自动迁移 v0.6.1 的 Docker 卷数据。
 
-当前推荐版本：`v0.7.4`
+当前推荐版本：`v0.7.5`
 
 ## 当前能力
 
@@ -40,7 +40,7 @@ Electron 桌面壳
 - `apps/desktop`：Electron 桌面壳（拉起内置服务进程、旧数据迁移编排、端内更新下载与替换）
 - `packages/shared`：共享类型与常量
 - `.github/workflows/release.yml`：发布工程 workflow（构建桌面 portable zip 与更新清单）
-- `docs/release/v0.7.4.md`：当前版本发布说明
+- `docs/release/v0.7.5.md`：当前版本发布说明
 
 ## Windows Portable 使用
 
@@ -49,7 +49,7 @@ Electron 桌面壳
 - Windows 10/11
 - （仅当需要迁移 v0.6.1 旧数据时）Docker Desktop
 
-解压 Release artifact 中的 `Yunwu Desktop-0.7.4-win-x64-portable.zip`，直接运行桌面程序即可。桌面壳会：
+解压 Release artifact 中的 `Yunwu Desktop-0.7.5-win-x64-portable.zip`，直接运行桌面程序即可。桌面壳会：
 
 1. 在 `%APPDATA%/yunwu-desktop/data` 下创建 SQLite 数据库与本地存储目录
 2. 首次启动时检测 v0.6.1 Docker 卷；若存在且 Docker 可用，自动迁移旧数据（用户、会话、任务、图片资产）
@@ -181,6 +181,7 @@ API key 留空时适合本地联调或 mock-oriented 验证；真实图片生成
 
 - Windows 本地启动与测试：[docs/qa/windows-local-startup.md](docs/qa/windows-local-startup.md)
 - 桌面发布、账号与用户侧更新策略：[docs/release/desktop-release-strategy.md](docs/release/desktop-release-strategy.md)
+- v0.7.5 发布说明：[docs/release/v0.7.5.md](docs/release/v0.7.5.md)
 - v0.7.4 发布说明：[docs/release/v0.7.4.md](docs/release/v0.7.4.md)
 - v0.7.3 发布说明：[docs/release/v0.7.3.md](docs/release/v0.7.3.md)
 - v0.7.2 发布说明：[docs/release/v0.7.2.md](docs/release/v0.7.2.md)

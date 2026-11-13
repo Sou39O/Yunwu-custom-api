@@ -1067,6 +1067,9 @@ export class ApiService implements OnModuleInit {
       task.status,
     );
     if (terminal) {
+      // 已终结的任务本身不用改状态，但自动重试链可能还在派生下一轮，
+      // 用户点「停止」的预期是整条链都停，所以这里也要掐断。
+      await this.stopAutoRetryChain(task.id);
       return { task: this.toTaskRecord(task, task.assets) };
     }
 
@@ -1105,6 +1108,10 @@ export class ApiService implements OnModuleInit {
       }),
     ]);
 
+    // 按「停止」的用户预期，整条自动重试链都要停：
+    // 只取消当前这一轮的话，父任务终结时又会派生出新一轮，看起来就像停不掉。
+    await this.stopAutoRetryChain(task.id);
+
     if (task.conversationId) {
       this.conversationEvents.publishTaskUpdated({
         conversationId: task.conversationId,
@@ -1114,6 +1121,90 @@ export class ApiService implements OnModuleInit {
     }
 
     return this.getTask(user, task.id);
+  }
+
+  /**
+   * 停止一条自动重试链：沿 source_task_id 向上找到链头与所有轮次，
+   * 把其中未终结的任务取消，并给每个开了 autoRetry 的任务打上 completedAt，
+   * 让终结回调不再派生新一轮。
+   */
+  private async stopAutoRetryChain(taskId: string) {
+    const visited = new Set<string>();
+    const queue = [taskId];
+    const family: Array<{ id: string; status: string }> = [];
+
+    const collect = async (id: string) => {
+      let current: string | undefined = id;
+      while (current && !visited.has(current)) {
+        visited.add(current);
+        const row: { id: string; status: string; sourceTaskId: string | null } | null =
+          await this.prisma.task.findUnique({
+            where: { id: current },
+            select: { id: true, status: true, sourceTaskId: true },
+          });
+        if (!row) {
+          return;
+        }
+        family.push({ id: row.id, status: row.status });
+        // 链头：继续向上（父任务）；链尾：向下找它派生出的重试。
+        current = row.sourceTaskId ?? undefined;
+      }
+    };
+
+    // 先向上走到链头
+    while (queue.length) {
+      const id = queue.shift()!;
+      await collect(id);
+      // 递归收集所有派生轮次（含间接派生），否则从中间轮次停会漏掉后续。
+      const children: Array<{ id: string }> = await this.prisma.task.findMany({
+        where: { sourceTaskId: id },
+        select: { id: true },
+      });
+      for (const child of children) {
+        if (!visited.has(child.id)) {
+          queue.push(child.id);
+        }
+      }
+    }
+
+    const activeIds = family
+      .filter((entry) => !["succeeded", "failed", "cancelled", "expired"].includes(entry.status))
+      .map((entry) => entry.id);
+
+    for (const id of activeIds) {
+      this.taskQueue.cancelTask(id);
+      await this.prisma.task.update({
+        where: { id },
+        data: { status: "cancelled", progress: 100 },
+      });
+      await this.prisma.taskBatchItem.updateMany({
+        where: { taskId: id, status: { in: ["queued", "submitted", "running"] } },
+        data: { status: "cancelled", progress: 100, completedAt: new Date() },
+      });
+    }
+
+    // 给整条链的 autoRetry 打完成标记，阻断后续派生。
+    for (const id of family.map((entry) => entry.id)) {
+      const row: { input: Prisma.JsonValue | null } | null =
+        await this.prisma.task.findUnique({
+          where: { id },
+          select: { input: true },
+        });
+      const autoRetry = readAutoRetry(row?.input);
+      if (!autoRetry || autoRetry.completedAt) {
+        continue;
+      }
+      const input = { ...this.asRecord(row?.input) };
+      input.autoRetry = {
+        ...autoRetry,
+        completedAt: new Date().toISOString(),
+        stoppedByUser: true,
+      };
+      await this.prisma.task.update({
+        where: { id },
+        data: { input: input as Prisma.InputJsonObject },
+      });
+    }
   }
 
   /** 开启「自动 ×N 重试直到至少一张成功」。 */

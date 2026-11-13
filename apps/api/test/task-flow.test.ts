@@ -286,6 +286,14 @@ function createHarness(
     enqueueTask: async (taskId: string, source?: string) => {
       calls.enqueued.push({ taskId, source });
     },
+    cancelTask: (taskId: string) => {
+      (calls as Record<string, unknown[]>).cancelled ??= [];
+      (calls as Record<string, unknown[]>).cancelled.push(taskId);
+    },
+    resumeTask: async (taskId: string) => {
+      (calls as Record<string, unknown[]>).resumed ??= [];
+      (calls as Record<string, unknown[]>).resumed.push(taskId);
+    },
     enqueueBatchTask: async (
       taskId: string,
       source?: string,
@@ -387,6 +395,7 @@ function createHarness(
     providerConfig as any,
     providerState as any,
     providerAlerts as any,
+    { maybeSchedule: async () => ({ scheduled: false }) } as any,
   );
 
   return { service, calls };

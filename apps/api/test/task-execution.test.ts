@@ -150,6 +150,7 @@ test("TaskExecutionService fails user image tasks without API key and does not c
     conversationEvents as never,
     taskEvents as never,
     createAssetStorageMock() as never,
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
   );
 
   await service.execute(task.id);
@@ -254,6 +255,7 @@ test("TaskExecutionService prefers the user API key over the global key", async 
     conversationEvents as never,
     taskEvents as never,
     createAssetStorageMock({ store: calls.storage }) as never,
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
   );
 
   await service.execute(task.id);
@@ -336,6 +338,7 @@ test("TaskExecutionService keeps remote provider URLs when local materialization
     { publishTaskUpdated: (payload: Record<string, unknown>) => calls.published.push(payload) } as never,
     { record: async () => undefined } as never,
     createAssetStorageMock() as never,
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
   );
 
   try {
@@ -425,6 +428,7 @@ test("TaskExecutionService records concrete provider request failure details", a
       },
     } as never,
     createAssetStorageMock() as never,
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
   );
 
   await service.execute(task.id);
@@ -643,6 +647,7 @@ test("TaskExecutionService executes batch slots concurrently and stores partial 
       },
     } as never,
     createAssetStorageMock({ store: calls.storage }) as never,
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
   );
 
   await service.execute(task.id);
@@ -814,6 +819,7 @@ test("TaskExecutionService marks batch slots failed when shared batch setup fail
       },
     } as never,
     createAssetStorageMock() as never,
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
   );
 
   await service.execute(task.id);
@@ -958,7 +964,8 @@ test("TaskExecutionService classifies provider status and payload failures", asy
       {} as never,
       {} as never,
       {} as never,
-    );
+    { maybeSchedule: async () => ({ scheduled: false }) } as never,
+  );
     const failure = service["buildFailureSummary"](testCase.error);
 
     assert.equal(failure.category, testCase.category, testCase.name);

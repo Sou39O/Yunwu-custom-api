@@ -6,6 +6,15 @@ import { TaskQueueService } from "./task-queue.service";
 export const AUTO_RETRY_DEFAULT_BATCH_SIZE = 20;
 export const AUTO_RETRY_MAX_BATCH_SIZE = 20;
 
+/**
+ * 自动重试的轮数上限。
+ *
+ * 没有上限时，只要上游持续拒绝（例如内容审核把整批都挡掉），一条链会
+ * 无限派生出新任务：实测有账号跑到第 965 轮、累计 4000+ 个失败任务，
+ * 服务进程长期占着几十条到上游的连接。达到上限即停并按「已完成」标记。
+ */
+export const AUTO_RETRY_MAX_ROUNDS = 50;
+
 export interface AutoRetryConfig {
   batchSize: number;
   round: number;
@@ -94,6 +103,16 @@ export class TaskAutoRetryService {
 
     if (!["failed", "succeeded", "expired"].includes(task.status)) {
       // 还在跑（或被取消前的排队态），等下一次终结回调。
+      return { scheduled: false };
+    }
+
+    if (autoRetry.round >= AUTO_RETRY_MAX_ROUNDS) {
+      // 连续多轮全失败，通常是上游持续拒绝（内容审核/额度/权限），
+      // 再排下去只会无限占资源，这里按「已完成」收尾。
+      await this.markCompleted(task, autoRetry);
+      this.logger.warn(
+        `Task ${taskId} hit auto retry limit (${AUTO_RETRY_MAX_ROUNDS} rounds); stopping the chain.`,
+      );
       return { scheduled: false };
     }
 
